@@ -1,6 +1,6 @@
 #include <LiquidCrystal_I2C.h>
 
-const int switchPin = 10;
+const int switchPin = 11;
 
 // Motor driver pins
 const int EN1 = 9;  // Motor speed control
@@ -24,7 +24,8 @@ volatile long encoder2Position = 0;
 volatile int encoder1Direction = 1;  // 1 for forward, -1 for backward
 volatile int encoder2Direction = 1;  // 1 for forward, -1 for backward
 
-int speed = 255;
+int speed1 = 200;
+int speed2 = 200;
 
 const int incDistButton = 12;
 const int decDistButton = 13;
@@ -34,6 +35,15 @@ double distance;
 double savedDistance = 7.0;
 
 LiquidCrystal_I2C lcd(0x27,16,2);
+
+float kp = 0.1;
+float ki = 0.0;
+float kd = 0.0;
+float prev_time = 0.0;
+float total = 0.0;
+float error = 0.0;
+float prev_error = 0.0;
+float derivative = 0.0;
 
 void setup() {
   // Set motor pins as output
@@ -69,7 +79,7 @@ void setup() {
   lcd.setCursor(2,0);   //Set cursor to character 2 on line 0
   // lcd.print("Hello world!");
   // Serial.println("Hello world!");
-
+  prev_time = millis();
 
 }
 
@@ -82,7 +92,7 @@ void loop() {
   encoder2Position = 0;
 
   // Example: Set motor speed and direction
-  setMotorSpeed(255);  // Set speed (0 to 255)
+  // setMotorSpeed(255);  // Set speed (0 to 255)
   setMotorDirection(true);  // true = forward, false = backward
   // int ticks = cmToTick(distance);
   distance*=6.94/3.94;
@@ -93,8 +103,16 @@ void loop() {
   Serial.print(" distance: ");
   Serial.println(distance);
   
-  while (encoder1Position<ticks){
-      setMotorSpeed(speed);
+  while (max(encoder1Position, encoder2Position)<ticks){
+    error = encoder1Position - encoder2Position;
+    float current = millis();
+    total += error * (current - prev_time);
+    derivative = (prev_error - error)/(current-prev_time);
+    prev_error = error;
+    prev_time = current;
+    adjustment = error*kp + total * ki + derivative*kd;
+    setMotorSpeed1(speed1 - adjustment);
+    setMotorSpeed2(speed2 + adjustment);
     // Serial.print("Goal: ");
     // Serial.print(ticks);
     // Serial.print(" Position: ");
@@ -131,15 +149,28 @@ long cmToTick(long cm){
 }
 
 // Function to set motor speed (0-255)
-void setMotorSpeed(int speed) {
+void setMotorSpeed1(int speed) {
   speed = constrain(speed, 0, 255);  // Limit speed to 0-255
   if (speed == 0) {
     // Apply brake to stop the motor immediately
     analogWrite(EN1, 0);
-    analogWrite(EN2, 0);
 
     digitalWrite(IN1A, LOW);
     digitalWrite(IN1B, LOW);
+  } else {
+    // Set speed using PWM
+    analogWrite(EN1, speed);
+
+  }
+}
+
+// Function to set motor speed (0-255)
+void setMotorSpeed2(int speed) {
+  speed = constrain(speed, 0, 255);  // Limit speed to 0-255
+  if (speed == 0) {
+    // Apply brake to stop the motor immediately
+    analogWrite(EN2, 0);
+
     digitalWrite(IN2A, LOW);
     digitalWrite(IN2B, LOW);
   } else {
@@ -149,7 +180,6 @@ void setMotorSpeed(int speed) {
 
   }
 }
-
 
 // Function to set motor direction
 void setMotorDirection(bool forward) {
