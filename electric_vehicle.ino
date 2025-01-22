@@ -24,7 +24,7 @@ volatile long encoder2Position = 0;
 volatile int encoder1Direction = 1;  // 1 for forward, -1 for backward
 volatile int encoder2Direction = 1;  // 1 for forward, -1 for backward
 
-int speed = 200;
+int speed = 255;
 
 const int incDistButton = 12;
 const int decDistButton = 13;
@@ -82,33 +82,25 @@ void loop() {
   encoder2Position = 0;
 
   // Example: Set motor speed and direction
-  setMotorSpeed(150);  // Set speed (0 to 255)
+  setMotorSpeed(255);  // Set speed (0 to 255)
   setMotorDirection(true);  // true = forward, false = backward
   // int ticks = cmToTick(distance);
   distance*=6.94/3.94;
   long ticks = cmToTick(distance);
-  long speeding_up_distance = cmToTick(10);
+  // long speeding_up_distance = cmToTick(10);
   Serial.print("ticks: ");
   Serial.print(ticks);
   Serial.print(" distance: ");
   Serial.println(distance);
   
   while (encoder1Position<ticks){
-    if (ticks<speeding_up_distance){
-      Serial.print("encoderPosition");
-      Serial.println(ticks);
-      setMotorSpeed(150);
-      // setMotorSpeed(speed*encoderPosition/speeding_up_distance);
-    }else{
       setMotorSpeed(speed);
-    }
-    delay(100);
-    Serial.print("Goal: ");
-    Serial.print(ticks);
-    Serial.print(" Position: ");
-    Serial.print(encoder1Position);
-    Serial.print(" Direction: ");
-    Serial.println(encoder1Direction == 1 ? "Forward" : "Backward");
+    // Serial.print("Goal: ");
+    // Serial.print(ticks);
+    // Serial.print(" Position: ");
+    // Serial.print(encoder1Position);
+    // Serial.print(" Direction: ");
+    // Serial.println(encoder1Direction == 1 ? "Forward" : "Backward");
 
   }
     Serial.println("hii");
