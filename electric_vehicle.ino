@@ -24,8 +24,10 @@ volatile long encoder2Position = 0;
 volatile int encoder1Direction = 1;  // 1 for forward, -1 for backward
 volatile int encoder2Direction = 1;  // 1 for forward, -1 for backward
 
-int speed1 = 200;
-int speed2 = 200;
+// int speed1 = 160;
+// int speed2 = 240;
+int speed1 = 255;
+int speed2 = 255;
 
 const int incDistButton = 12;
 const int decDistButton = 13;
@@ -36,9 +38,9 @@ double savedDistance = 7.0;
 
 LiquidCrystal_I2C lcd(0x27,16,2);
 
-float kp = 0.1;
-float ki = 0.0;
-float kd = 0.0;
+float kp = 2;
+float ki = 0.00005;
+float kd = 0.1;
 float prev_time = 0.0;
 float total = 0.0;
 float error = 0.0;
@@ -68,17 +70,12 @@ void setup() {
   
   // Initialize serial for debugging
   Serial.begin(9600);
-  // Serial.println("hi");
 
   //lcd stuff
   lcd.init();
-  // Serial.println("testing");
   lcd.clear();
-  // Serial.println("blah!");
   lcd.backlight();      // Make sure backlight is on
   lcd.setCursor(2,0);   //Set cursor to character 2 on line 0
-  // lcd.print("Hello world!");
-  // Serial.println("Hello world!");
   prev_time = millis();
 
 }
@@ -92,33 +89,40 @@ void loop() {
   encoder2Position = 0;
 
   // Example: Set motor speed and direction
-  // setMotorSpeed(255);  // Set speed (0 to 255)
   setMotorDirection(true);  // true = forward, false = backward
-  // int ticks = cmToTick(distance);
-  distance*=6.94/3.94;
+  distance *= 7/7.66;
+  // distance*=6.94/3.94;
   long ticks = cmToTick(distance);
-  // long speeding_up_distance = cmToTick(10);
   Serial.print("ticks: ");
   Serial.print(ticks);
   Serial.print(" distance: ");
   Serial.println(distance);
   
   while (max(encoder1Position, encoder2Position)<ticks){
+    // delay(5);
+    
+    Serial.print("encoder 1 position: ");
+    Serial.print(encoder1Position);
+    Serial.print(" encoder 2 position:");
+    Serial.print(encoder2Position);
+    Serial.print(" max ticks: ");
+    Serial.print(ticks);
     error = encoder1Position - encoder2Position;
     float current = millis();
     total += error * (current - prev_time);
-    derivative = (prev_error - error)/(current-prev_time);
+    derivative = (error - prev_error)/(current-prev_time);
     prev_error = error;
     prev_time = current;
-    adjustment = error*kp + total * ki + derivative*kd;
+    float adjustment = error * kp + total * ki + derivative * kd;
+    Serial.print(" adjustment ");
+    Serial.print(adjustment);
+    Serial.print(" speed1 ");
+    Serial.print(constrain(speed1 - adjustment, 0, 255));
+    Serial.print(" speed2 ");
+    Serial.println(constrain(speed2 + adjustment, 0, 255));
+
     setMotorSpeed1(speed1 - adjustment);
     setMotorSpeed2(speed2 + adjustment);
-    // Serial.print("Goal: ");
-    // Serial.print(ticks);
-    // Serial.print(" Position: ");
-    // Serial.print(encoder1Position);
-    // Serial.print(" Direction: ");
-    // Serial.println(encoder1Direction == 1 ? "Forward" : "Backward");
 
   }
     Serial.println("hii");
@@ -129,19 +133,6 @@ void loop() {
     digitalWrite(IN2A, LOW);
     digitalWrite(IN2B, LOW);
     delay(2000);
-    // while(true){
-    //     delay(100);
-    // }
-
-  // setMotorSpeed(0);
-
-  // Print encoder position and direction for debugging
-  // Serial.print("Position: ");
-  // Serial.print(encoderPosition);
-  // Serial.print(" Direction: ");
-  // Serial.println(encoderDirection == 1 ? "Forward" : "Backward");
-  
-  // delay(100);  // Delay for readability
 }
 
 long cmToTick(long cm){
@@ -158,8 +149,10 @@ void setMotorSpeed1(int speed) {
     digitalWrite(IN1A, LOW);
     digitalWrite(IN1B, LOW);
   } else {
-    // Set speed using PWM
     analogWrite(EN1, speed);
+
+    digitalWrite(IN1A, HIGH);
+    digitalWrite(IN1B, LOW);
 
   }
 }
@@ -174,9 +167,11 @@ void setMotorSpeed2(int speed) {
     digitalWrite(IN2A, LOW);
     digitalWrite(IN2B, LOW);
   } else {
-    // Set speed using PWM
-    analogWrite(EN1, speed);
     analogWrite(EN2, speed);
+
+    digitalWrite(IN2A, HIGH);
+    digitalWrite(IN2B, LOW);
+    // Set speed using PWM
 
   }
 }
@@ -216,10 +211,10 @@ void readEncoderMotor2() {
   
   // Determine direction based on channel B relative to channel A
   if (stateB == digitalRead(encoder2PinA)) {
-    encoder2Position--;
+    encoder2Position++;
     encoder2Direction = 1;  // Forward
   } else {
-    encoder2Position++;
+    encoder2Position--;
     encoder2Direction = -1;  // Backward
   }
 }
