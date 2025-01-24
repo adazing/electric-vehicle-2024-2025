@@ -19,6 +19,7 @@ const int encoder2PinB = A2;
 
 
 // Variables to track encoder position and direction
+volatile long encoderPosition = 0;
 volatile long encoder1Position = 0;
 volatile long encoder2Position = 0;
 volatile int encoder1Direction = 1;  // 1 for forward, -1 for backward
@@ -26,22 +27,23 @@ volatile int encoder2Direction = 1;  // 1 for forward, -1 for backward
 
 // int speed1 = 160;
 // int speed2 = 240;
-int slow_speed = 125;
+int slow_speed = 100;
 int fast_speed = 255;
-int accelerating_ticks = 4000;// ticks it takes to accelerate from slow to fast or vice versa
+int accelerating_ticks = 500;// ticks it takes to accelerate from slow to fast or vice versa
+bool accelerated = false;
 int speed1 = slow_speed;
 int speed2 = slow_speed;
 
 const int incDistButton = 12;
 const int decDistButton = 13;
-const double MULTIPLIER = 0.1; //in m
+const double MULTIPLIER = 0.01; //in m
 
 double distance;
-double savedDistance = 7.0;
+double savedDistance = 2.0;
 
 LiquidCrystal_I2C lcd(0x27,16,2);
 
-float kp = 2;
+float kp = 1;
 float ki = 0.00005;
 float kd = 0.1;
 float prev_time = 0.0;
@@ -86,10 +88,15 @@ void setup() {
 void loop() {
   while(digitalRead(switchPin) == LOW) {
     updateDistance();
-    delay(100);
+    delay(50);
   }
+
+  delay(100);
   encoder1Position = 0;
   encoder2Position = 0;
+
+  total = 0.0;
+  // accelerated = false;
 
   // Example: Set motor speed and direction
   setMotorDirection(true);  // true = forward, false = backward
@@ -100,16 +107,24 @@ void loop() {
   Serial.print(ticks);
   Serial.print(" distance: ");
   Serial.println(distance);
-  
-  while (max(encoder1Position, encoder2Position)<ticks){
-    if (max(encoder1Position, encoder2Position)>accelerating_ticks){
-      int change = (fast_speed-slow_speed)/accelerating_ticks;
-      speed1 += change;
-      speed2 += change;
+  while (encoderPosition<ticks){
+    encoderPosition = max(encoder1Position, encoder2Position);
+    Serial.print(" encoderPosition ");
+    Serial.print(encoderPosition);
+    Serial.print(" blah ");
+    Serial.print(encoderPosition/accelerating_ticks);
+    if (encoderPosition<accelerating_ticks){
+      // int change = (fast_speed-slow_speed)/accelerating_ticks;
+      // int change = fast_speed - slow_speed;
+      speed1 = (float)encoderPosition/(float)accelerating_ticks*((float)fast_speed-(float)slow_speed)+(float)slow_speed;
+      speed2 = (float)encoderPosition/(float)accelerating_ticks*((float)fast_speed-(float)slow_speed)+(float)slow_speed;
+      // accelerated = true;
+      // total = 0.0; //reset integral
     }
     // delay(5);
-    // Serial.print("")
-    Serial.print("encoder 1 position: ");
+    // Serial.print("dt");
+
+    Serial.print(" encoder 1 position: ");
     Serial.print(encoder1Position);
     Serial.print(" encoder 2 position:");
     Serial.print(encoder2Position);
@@ -122,6 +137,9 @@ void loop() {
     prev_error = error;
     prev_time = current;
     float adjustment = error * kp + total * ki + derivative * kd;
+    // if(!accelerated){
+    //   adjustment = false;
+    // }
     Serial.print(" adjustment ");
     Serial.print(adjustment);
     Serial.print(" speed1 ");
