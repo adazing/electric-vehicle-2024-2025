@@ -26,8 +26,11 @@ volatile int encoder2Direction = 1;  // 1 for forward, -1 for backward
 
 // int speed1 = 160;
 // int speed2 = 240;
-int speed1 = 255;
-int speed2 = 255;
+int slow_speed = 125;
+int fast_speed = 255;
+int accelerating_ticks = 4000;// ticks it takes to accelerate from slow to fast or vice versa
+int speed1 = slow_speed;
+int speed2 = slow_speed;
 
 const int incDistButton = 12;
 const int decDistButton = 13;
@@ -99,8 +102,13 @@ void loop() {
   Serial.println(distance);
   
   while (max(encoder1Position, encoder2Position)<ticks){
+    if (max(encoder1Position, encoder2Position)>accelerating_ticks){
+      int change = (fast_speed-slow_speed)/accelerating_ticks;
+      speed1 += change;
+      speed2 += change;
+    }
     // delay(5);
-    
+    // Serial.print("")
     Serial.print("encoder 1 position: ");
     Serial.print(encoder1Position);
     Serial.print(" encoder 2 position:");
