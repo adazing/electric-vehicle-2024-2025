@@ -39,13 +39,13 @@ const int decDistButton = 13;
 const double MULTIPLIER = 0.01; //in m
 
 double distance;
-double savedDistance = 2.0;
+double savedDistance = 7.0;
 
 LiquidCrystal_I2C lcd(0x27,16,2);
 
-float kp = 1;
-float ki = 0.00005;
-float kd = 0.1;
+float kp = 0.7;
+float ki = 0.00004;
+float kd = 0.12;
 float prev_time = 0.0;
 float total = 0.0;
 float error = 0.0;
@@ -86,11 +86,17 @@ void setup() {
 }
 
 void loop() {
+    analogWrite(EN1, 0);
+    digitalWrite(IN1A, LOW);
+    digitalWrite(IN1B, LOW);
+    analogWrite(EN2, 0);
+    digitalWrite(IN2A, LOW);
+    digitalWrite(IN2B, LOW);
   while(digitalRead(switchPin) == LOW) {
     updateDistance();
     delay(50);
   }
-
+  
   delay(100);
   encoder1Position = 0;
   encoder2Position = 0;
@@ -123,7 +129,8 @@ void loop() {
     }
     // delay(5);
     // Serial.print("dt");
-
+    Serial.print(" button ");
+    Serial.print(digitalRead(switchPin));
     Serial.print(" encoder 1 position: ");
     Serial.print(encoder1Position);
     Serial.print(" encoder 2 position:");
@@ -146,11 +153,13 @@ void loop() {
     Serial.print(constrain(speed1 - adjustment, 0, 255));
     Serial.print(" speed2 ");
     Serial.println(constrain(speed2 + adjustment, 0, 255));
-
     setMotorSpeed1(speed1 - adjustment);
     setMotorSpeed2(speed2 + adjustment);
 
   }
+    encoder1Position = 0;
+    encoder2Position = 0;
+    encoderPosition = 0;
     Serial.println("hii");
     analogWrite(EN1, 0);
     digitalWrite(IN1A, LOW);
