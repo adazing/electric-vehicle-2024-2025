@@ -1,264 +1,167 @@
 #include <LiquidCrystal_I2C.h>
 
-const int switchPin = 11;
+// Motor Encoder Pins
+#define ENCODER2_A 2  // Motor 1 Encoder A (Interrupt)
+#define ENCODER2_B 4  // Motor 1 Encoder B
+#define ENCODER1_A 3  // Motor 2 Encoder A (Interrupt)
+#define ENCODER1_B 7  // Motor 2 Encoder B
 
-// Motor driver pins
-const int EN1 = 9;  // Motor speed control
-const int IN1A = 7;  // Motor direction control
-const int IN1B = 8;  // Motor direction control
+// Motor Control Pins (DRV8833)
+#define MOTOR1_A 5  // Motor 1 Input A
+#define MOTOR1_B 6  // Motor 1 Input B
+#define MOTOR2_A 9  // Motor 2 Input A
+#define MOTOR2_B 10 // Motor 2 Input B
 
-const int EN2 = 6;  // Motor speed control
-const int IN2A = 5;  // Motor direction control
-const int IN2B = 4;  // Motor direction control
-
-// Encoder pins
-const int encoder1PinA = 2;  // Encoder Channel A to digital pin 2
-const int encoder2PinA = 3;  // Encoder Channel A to digital pin 3
-const int encoder1PinB = A1;
-const int encoder2PinB = A2;
-
-
-// Variables to track encoder position and direction
-volatile long encoderPosition = 0;
-volatile long encoder1Position = 0;
-volatile long encoder2Position = 0;
-volatile int encoder1Direction = 1;  // 1 for forward, -1 for backward
-volatile int encoder2Direction = 1;  // 1 for forward, -1 for backward
-
-// int speed1 = 160;
-// int speed2 = 240;
-int slow_speed = 100;
-int fast_speed = 255;
-int accelerating_ticks = 500;// ticks it takes to accelerate from slow to fast or vice versa
-bool accelerated = false;
-int speed1 = slow_speed;
-int speed2 = slow_speed;
-
-const int incDistButton = 12;
-const int decDistButton = 13;
-const double MULTIPLIER = 0.01; //in m
-
-double distance;
-double savedDistance = 7.0;
+// buttons
+#define INC_BTN 8 // button that increases speed
+#define DEC_BTN 12 // button that decreases speed
+#define START_BTN 11 // button that starts vehicle
 
 LiquidCrystal_I2C lcd(0x27,16,2);
 
-float kp = 0.7;
-float ki = 0.00004;
-float kd = 0.12;
+// Encoder Fixes
+float kp = 1.5;
+float ki = 0.0;
+float kd = 0.1;
 float prev_time = 0.0;
 float total = 0.0;
 float error = 0.0;
 float prev_error = 0.0;
 float derivative = 0.0;
+volatile long encoder1_count = 0;
+volatile long encoder2_count = 0;
+volatile long max_encoder_count = 0;
+
+//speeding up
+int slow_speed = 100;
+int fast_speed = 255;
+int accelerating_ticks = 700;// ticks it takes to accelerate from slow to fast or vice versa
+
+//speed
+int speed1 = slow_speed;
+int speed2 = slow_speed;
+
+float distance = 1.5; //distance vehicle goes cm
+float interval = 0.25;
+
+// Interrupt Service Routines for Encoder Counting
+void encoder1_ISR() {
+  if (digitalRead(ENCODER1_B) == HIGH) encoder1_count++;
+  else encoder1_count--;
+}
+
+void encoder2_ISR() {
+  if (digitalRead(ENCODER2_B) == HIGH) encoder2_count--;
+  else encoder2_count++;
+}
 
 void setup() {
-  // Set motor pins as output
-  pinMode(EN1, OUTPUT);
-  pinMode(IN1A, OUTPUT);
-  pinMode(IN1B, OUTPUT);
-
-  pinMode(EN2, OUTPUT);
-  pinMode(IN2A, OUTPUT);
-  pinMode(IN2B, OUTPUT);
-
-  // Set encoder pins as input
-  pinMode(encoder1PinA, INPUT);
-  pinMode(encoder1PinB, INPUT);
-  pinMode(encoder2PinA, INPUT);
-  pinMode(encoder2PinB, INPUT);
-
-  // Attach interrupt to encoder channel A
-  attachInterrupt(digitalPinToInterrupt(encoder1PinA), readEncoderMotor1, RISING);
-  attachInterrupt(digitalPinToInterrupt(encoder2PinA), readEncoderMotor2, RISING);
-
-  
-  // Initialize serial for debugging
   Serial.begin(9600);
 
+  //buttons
+  pinMode(INC_BTN, INPUT);
+  pinMode(DEC_BTN, INPUT);
+  pinMode(START_BTN, INPUT);
+
+  //motor pins as output
+  pinMode(MOTOR1_A, OUTPUT);
+  pinMode(MOTOR1_B, OUTPUT);
+  pinMode(MOTOR2_A, OUTPUT);
+  pinMode(MOTOR2_B, OUTPUT);
+
+  //encoder pins as input
+  pinMode(ENCODER1_A, INPUT_PULLUP);
+  pinMode(ENCODER1_B, INPUT_PULLUP);
+  pinMode(ENCODER2_A, INPUT_PULLUP);
+  pinMode(ENCODER2_B, INPUT_PULLUP);
+
+  //attach tnterrupts for encoders
+  attachInterrupt(digitalPinToInterrupt(ENCODER1_A), encoder1_ISR, RISING);
+  attachInterrupt(digitalPinToInterrupt(ENCODER2_A), encoder2_ISR, RISING);
+  
   //lcd stuff
   lcd.init();
   lcd.clear();
-  lcd.backlight();      // Make sure backlight is on
-  lcd.setCursor(2,0);   //Set cursor to character 2 on line 0
+  lcd.backlight();      //make sure backlight is on
+  lcd.setCursor(2,0);   //set cursor to character 2 on line 0
   prev_time = millis();
+}
+
+long cmToTick(long cm){
+  return cm*240*7*60/4/(3.14159*6.0);
+}
+
+void updateDistance() {
+  distance += interval*digitalRead(INC_BTN) - interval*digitalRead(DEC_BTN);
+  lcd.clear();        
+  lcd.setCursor(2,0);   //Set cursor to character 2 on line 0
+  lcd.print(distance);
 
 }
 
 void loop() {
-    analogWrite(EN1, 0);
-    digitalWrite(IN1A, LOW);
-    digitalWrite(IN1B, LOW);
-    analogWrite(EN2, 0);
-    digitalWrite(IN2A, LOW);
-    digitalWrite(IN2B, LOW);
-  while(digitalRead(switchPin) == LOW) {
+
+  while(digitalRead(START_BTN) == LOW) {
     updateDistance();
-    delay(50);
+    delay(150);
   }
-  
-  delay(100);
-  encoder1Position = 0;
-  encoder2Position = 0;
+  delay(200);
+
+  // reset encoder counts
+  encoder1_count = 0;
+  encoder2_count = 0;
+  max_encoder_count = 0;
 
   total = 0.0;
-  // accelerated = false;
 
-  // Example: Set motor speed and direction
-  setMotorDirection(true);  // true = forward, false = backward
-  distance *= 7/7.66;
-  // distance*=6.94/3.94;
   long ticks = cmToTick(distance);
   Serial.print("ticks: ");
   Serial.print(ticks);
   Serial.print(" distance: ");
   Serial.println(distance);
-  while (encoderPosition<ticks){
-    encoderPosition = max(encoder1Position, encoder2Position);
-    Serial.print(" encoderPosition ");
-    Serial.print(encoderPosition);
-    Serial.print(" blah ");
-    Serial.print(encoderPosition/accelerating_ticks);
-    if (encoderPosition<accelerating_ticks){
-      // int change = (fast_speed-slow_speed)/accelerating_ticks;
-      // int change = fast_speed - slow_speed;
-      speed1 = (float)encoderPosition/(float)accelerating_ticks*((float)fast_speed-(float)slow_speed)+(float)slow_speed;
-      speed2 = (float)encoderPosition/(float)accelerating_ticks*((float)fast_speed-(float)slow_speed)+(float)slow_speed;
-      // accelerated = true;
-      // total = 0.0; //reset integral
+
+  while (max_encoder_count<ticks){
+    Serial.print("Encoder1: ");
+    Serial.print(encoder1_count);
+    Serial.print(" | Encoder2: ");
+    Serial.print(encoder2_count);
+
+    max_encoder_count = max(encoder1_count, encoder2_count);
+    if (max_encoder_count<accelerating_ticks){
+      speed1 = (float)max_encoder_count/(float)accelerating_ticks*((float)fast_speed-(float)slow_speed)+(float)slow_speed;
+      speed2 = (float)max_encoder_count/(float)accelerating_ticks*((float)fast_speed-(float)slow_speed)+(float)slow_speed;
     }
-    // delay(5);
-    // Serial.print("dt");
-    Serial.print(" button ");
-    Serial.print(digitalRead(switchPin));
-    Serial.print(" encoder 1 position: ");
-    Serial.print(encoder1Position);
-    Serial.print(" encoder 2 position:");
-    Serial.print(encoder2Position);
-    Serial.print(" max ticks: ");
-    Serial.print(ticks);
-    error = encoder1Position - encoder2Position;
+    if (ticks - max_encoder_count < accelerating_ticks){
+      speed1 = (float)(ticks - max_encoder_count)/(float)accelerating_ticks*((float)fast_speed-(float)slow_speed)+(float)slow_speed;
+      speed2 = (float)(ticks - max_encoder_count)/(float)accelerating_ticks*((float)fast_speed-(float)slow_speed)+(float)slow_speed;
+    }
+    error = encoder1_count - encoder2_count;
     float current = millis();
     total += error * (current - prev_time);
     derivative = (error - prev_error)/(current-prev_time);
     prev_error = error;
     prev_time = current;
     float adjustment = error * kp + total * ki + derivative * kd;
-    // if(!accelerated){
-    //   adjustment = false;
-    // }
     Serial.print(" adjustment ");
-    Serial.print(adjustment);
-    Serial.print(" speed1 ");
-    Serial.print(constrain(speed1 - adjustment, 0, 255));
-    Serial.print(" speed2 ");
-    Serial.println(constrain(speed2 + adjustment, 0, 255));
-    setMotorSpeed1(speed1 - adjustment);
-    setMotorSpeed2(speed2 + adjustment);
+    Serial.println(adjustment);
+    analogWrite(MOTOR1_A, constrain(speed1-adjustment, 15, 255));
+    digitalWrite(MOTOR1_B, LOW);
 
+    analogWrite(MOTOR2_A, constrain(speed2+adjustment, 15, 255));
+    digitalWrite(MOTOR2_B, LOW);
   }
-    encoder1Position = 0;
-    encoder2Position = 0;
-    encoderPosition = 0;
-    Serial.println("hii");
-    analogWrite(EN1, 0);
-    digitalWrite(IN1A, LOW);
-    digitalWrite(IN1B, LOW);
-    analogWrite(EN2, 0);
-    digitalWrite(IN2A, LOW);
-    digitalWrite(IN2B, LOW);
-    delay(2000);
-}
+  // turn off both motors
+  analogWrite(MOTOR1_A, LOW);
+  digitalWrite(MOTOR1_B, LOW);
 
-long cmToTick(long cm){
-  return cm*240*7/4/(3.14159*6.0);
-}
+  analogWrite(MOTOR2_A, LOW);
+  digitalWrite(MOTOR2_B, LOW);
 
-// Function to set motor speed (0-255)
-void setMotorSpeed1(int speed) {
-  speed = constrain(speed, 0, 255);  // Limit speed to 0-255
-  if (speed == 0) {
-    // Apply brake to stop the motor immediately
-    analogWrite(EN1, 0);
+  // // Print encoder counts
+  // Serial.print("Encoder1: ");
+  // Serial.print(encoder1_count);
+  // Serial.print(" | Encoder2: ");
+  // Serial.println(encoder2_count);
 
-    digitalWrite(IN1A, LOW);
-    digitalWrite(IN1B, LOW);
-  } else {
-    analogWrite(EN1, speed);
-
-    digitalWrite(IN1A, HIGH);
-    digitalWrite(IN1B, LOW);
-
-  }
-}
-
-// Function to set motor speed (0-255)
-void setMotorSpeed2(int speed) {
-  speed = constrain(speed, 0, 255);  // Limit speed to 0-255
-  if (speed == 0) {
-    // Apply brake to stop the motor immediately
-    analogWrite(EN2, 0);
-
-    digitalWrite(IN2A, LOW);
-    digitalWrite(IN2B, LOW);
-  } else {
-    analogWrite(EN2, speed);
-
-    digitalWrite(IN2A, HIGH);
-    digitalWrite(IN2B, LOW);
-    // Set speed using PWM
-
-  }
-}
-
-// Function to set motor direction
-void setMotorDirection(bool forward) {
-  if (forward) {
-    digitalWrite(IN1A, HIGH);
-    digitalWrite(IN1B, LOW);
-    digitalWrite(IN2A, HIGH);
-    digitalWrite(IN2B, LOW);
-  } else {
-    digitalWrite(IN1A, LOW);
-    digitalWrite(IN1B, HIGH);
-    digitalWrite(IN2A, LOW);
-    digitalWrite(IN2B, HIGH);
-  }
-}
-
-// Interrupt service routine for encoder
-void readEncoderMotor1() {
-  int stateB = digitalRead(encoder1PinB);
-  
-  // Determine direction based on channel B relative to channel A
-  if (stateB == digitalRead(encoder1PinA)) {
-    encoder1Position--;
-    encoder1Direction = 1;  // Forward
-  } else {
-    encoder1Position++;
-    encoder1Direction = -1;  // Backward
-  }
-}
-
-// Interrupt service routine for encoder
-void readEncoderMotor2() {
-  int stateB = digitalRead(encoder2PinB);
-  
-  // Determine direction based on channel B relative to channel A
-  if (stateB == digitalRead(encoder2PinA)) {
-    encoder2Position++;
-    encoder2Direction = 1;  // Forward
-  } else {
-    encoder2Position--;
-    encoder2Direction = -1;  // Backward
-  }
-}
-
-void updateDistance() {
-  savedDistance += MULTIPLIER*digitalRead(incDistButton) - MULTIPLIER*digitalRead(decDistButton);
-  lcd.clear();        
-  lcd.setCursor(2,0);   //Set cursor to character 2 on line 0
-  lcd.print(savedDistance);
-  distance = savedDistance * 100.0;
-
+  delay(200);
 }
