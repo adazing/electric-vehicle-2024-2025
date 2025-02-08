@@ -20,7 +20,8 @@
 LiquidCrystal_I2C lcd(0x27,16,2);
 
 // Encoder Fixes
-float kp = 1.5;
+float kp = 1.2;
+// float ki = 0.00005;
 float ki = 0.0;
 float kd = 0.1;
 float prev_time = 0.0;
@@ -35,13 +36,13 @@ volatile long max_encoder_count = 0;
 //speeding up
 int slow_speed = 100;
 int fast_speed = 255;
-int accelerating_ticks = 700;// ticks it takes to accelerate from slow to fast or vice versa
+int accelerating_ticks = 300;// ticks it takes to accelerate from slow to fast or vice versa
 
 //speed
 int speed1 = slow_speed;
 int speed2 = slow_speed;
 
-float distance = 1.5; //distance vehicle goes cm
+float distance = 3.0; //distance vehicle goes cm
 float interval = 0.25;
 
 // Interrupt Service Routines for Encoder Counting
@@ -88,7 +89,7 @@ void setup() {
 }
 
 long cmToTick(long cm){
-  return cm*240*7*60/4/(3.14159*6.0);
+  return cm*240*7*60/4/(3.14159*6.0) * 1/1.8;
 }
 
 void updateDistance() {
