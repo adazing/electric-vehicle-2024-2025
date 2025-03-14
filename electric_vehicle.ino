@@ -13,16 +13,16 @@
 volatile long encoder_count = 0;
 
 //speeding up
-int slow_speed = 100;
-int fast_speed = 255;
+int slow_speed = 150;
+int fast_speed = 200;
 int accelerating_ticks = 300;// ticks it takes to accelerate from slow to fast or vice versa
 
 //speed
 int speed = slow_speed;
 
 float distance = 3.0; //distance vehicle goes in meters
-float cpr = 1632.67;
-int total_ticks = distance*cpr;
+float cpr = 211.2;
+int total_ticks = distance*cpr/(0.045*3.14159*2)/4*3/3.5;
 
 // Interrupt Service Routines for Encoder Counting
 void encoder_ISR() {
@@ -51,14 +51,14 @@ void setup() {
 
 
 void loop() {
-  analogWrite(MOTOR_A, LOW);
+  digitalWrite(MOTOR_A, LOW);
   digitalWrite(MOTOR_B, LOW);
   while(digitalRead(START_BTN) == LOW) {
     delay(150);
   }
   delay(200);
   
-  analogWrite(MOTOR_A, HIGH);
+  digitalWrite(MOTOR_A, HIGH);
   digitalWrite(MOTOR_B, LOW);
 
   // reset encoder counts
@@ -71,7 +71,7 @@ void loop() {
 
   while (encoder_count<total_ticks){
     Serial.print("encoder count: ");
-    Serial.print(encoder_count);
+    Serial.println(encoder_count);
 
     if (encoder_count<accelerating_ticks){
       speed = (float)encoder_count/(float)accelerating_ticks*((float)fast_speed-(float)slow_speed)+(float)slow_speed;
@@ -83,15 +83,9 @@ void loop() {
 
   }
   // turn off both motors
-  analogWrite(MOTOR_A, LOW);
+  digitalWrite(MOTOR_A, LOW);
   digitalWrite(MOTOR_B, LOW);
 
-
-  // // Print encoder counts
-  // Serial.print("Encoder1: ");
-  // Serial.print(encoder1_count);
-  // Serial.print(" | Encoder2: ");
-  // Serial.println(encoder2_count);
 
   delay(200);
 }
